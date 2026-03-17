@@ -1,0 +1,11 @@
+name = "hoodi-dev"
+
+[l1]
+chain_id = 560048
+public_rpc = "https://ethereum-hoodi-rpc.publicnode.com"
+explorer  = "https://hoodi.etherscan.io/"
+
+[publisher]
+superblock_contract = "0x0000000000000000000000000000000000000001"
+dispute_game_factory = "0x54e692F4e290409035a9cC6A3d55eB047c82112C"
+auth_pubkeys = []

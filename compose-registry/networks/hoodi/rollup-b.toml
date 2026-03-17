@@ -1,0 +1,15 @@
+name = "rollup-b"
+public_rpc = "https://rpc-b.testnet.compose.network"
+explorer = "https://rollup-b.explorer.compose.network"
+chain_id = 22224
+
+[addresses]
+Mailbox = "0x2498eF6bc1476652F5a47C50FAffBEa39Abbc4e5"
+
+[genesis]
+l2_time = 1760691360
+
+[sequencer]
+host = "hoodi-op-stack-b-geth"
+port = 9898
+auth_pubkeys = []

@@ -1,0 +1,33 @@
+./build/bin/geth \
+  --datadir ./datadir1 \
+  --http \
+  --http.corsdomain="*" \
+  --http.vhosts="*" \
+  --http.addr=0.0.0.0 \
+  --http.api=web3,debug,eth,txpool,net,engine,miner \
+  --ws \
+  --ws.addr=0.0.0.0 \
+  --ws.port=8546 \
+  --ws.origins="*" \
+  --ws.api=debug,eth,txpool,net,engine \
+  --syncmode=full \
+  --gcmode=archive \
+  --nodiscover \
+  --maxpeers=0 \
+  --networkid=61110 \
+  --registry.path=./compose-registry \
+  --authrpc.vhosts="*" \
+  --authrpc.addr=0.0.0.0 \
+  --authrpc.port=8551 \
+  --authrpc.jwtsecret=./jwt.txt \
+  --rollup.disabletxpoolgossip=true \
+  --sp.addr=localhost:8080 \
+  --override.isthmus=0 \
+  --override.jovian=0 \
+  --sp.listen.addr=:9898 \
+  --sequencer.addrs=21110:localhost:10898,61110:localhost:9898 \
+  --sequencer.key=0x4ffc57431830b53596f4a3f275c5e9193b5c5d428405773bcfd0d57a40ec6af9 \
+  --rollup.computependingblock=true \
+  --coordinator.key=0x4ffc57431830b53596f4a3f275c5e9193b5c5d428405773bcfd0d57a40ec6af9 \
+  --mailbox.addr-a=0x48c061aabD503025741FCE0910385EaE08CFd313 \
+  --mailbox.addr-b=0x0FBd1198Ef78Ea9f815cC45720efeaf39D38Efb7

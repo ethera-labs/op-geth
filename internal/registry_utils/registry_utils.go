@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	reg "github.com/compose-network/registry/registry"
+	reg "github.com/ethera-labs/registry/registry"
 )
 
 // RegistryUtils provides minimal helpers to resolve values from the embedded (or on-disk) registry.

@@ -1,0 +1,15 @@
+name = "rollup-a"
+public_rpc = "http://optimism-stack-geth:8545"
+explorer = "https://blockscout-rollup-1.stage.ops.ssvlabsinternal.com/"
+chain_id = 61110
+
+[addresses]
+Mailbox = "0x248721a59a2756E579026aDA017bd9B6adFe3e57"
+
+[genesis]
+l2_time = 1756804404
+
+[sequencer]
+host = "optimism-stack-geth"
+port = 9898
+auth_pubkeys = []
