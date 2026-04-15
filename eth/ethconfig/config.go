@@ -50,26 +50,27 @@ var FullNodeGPO = gasprice.Config{
 
 // Defaults contains default settings for use on the Ethereum main net.
 var Defaults = Config{
-	HistoryMode:        history.KeepAll,
-	SyncMode:           SnapSync,
-	NetworkId:          0, // enable auto configuration of networkID == chainID
-	TxLookupLimit:      2350000,
-	TransactionHistory: 2350000,
-	LogHistory:         2350000,
-	StateHistory:       params.FullImmutabilityThreshold,
-	DatabaseCache:      512,
-	TrieCleanCache:     154,
-	TrieDirtyCache:     256,
-	TrieTimeout:        60 * time.Minute,
-	SnapshotCache:      102,
-	FilterLogCacheSize: 32,
-	Miner:              miner.DefaultConfig,
-	TxPool:             legacypool.DefaultConfig,
-	BlobPool:           blobpool.DefaultConfig,
-	RPCGasCap:          50000000,
-	RPCEVMTimeout:      5 * time.Second,
-	GPO:                FullNodeGPO,
-	RPCTxFeeCap:        1, // 1 ether
+	HistoryMode:                history.KeepAll,
+	SyncMode:                   SnapSync,
+	NetworkId:                  0, // enable auto configuration of networkID == chainID
+	TxLookupLimit:              2350000,
+	TransactionHistory:         2350000,
+	LogHistory:                 2350000,
+	StateHistory:               params.FullImmutabilityThreshold,
+	DatabaseCache:              512,
+	TrieCleanCache:             154,
+	TrieDirtyCache:             256,
+	TrieTimeout:                60 * time.Minute,
+	SnapshotCache:              102,
+	FilterLogCacheSize:         32,
+	Miner:                      miner.DefaultConfig,
+	TxPool:                     legacypool.DefaultConfig,
+	BlobPool:                   blobpool.DefaultConfig,
+	RPCGasCap:                  50000000,
+	RPCEVMTimeout:              5 * time.Second,
+	GPO:                        FullNodeGPO,
+	RPCTxFeeCap:                1, // 1 ether
+	InteropVerificationTimeout: 2 * time.Second,
 
 	SPListenAddr:       ":9898",
 	SPServerAddr:       "localhost:18080",
@@ -199,8 +200,11 @@ type Config struct {
 	RollupDisableTxPoolAdmission              bool
 	RollupHaltOnIncompatibleProtocolVersion   string
 
-	InteropMessageRPC       string `toml:",omitempty"`
-	InteropMempoolFiltering bool   `toml:",omitempty"`
+	InteropMessageRPC          string        `toml:",omitempty"`
+	InteropMempoolFiltering    bool          `toml:",omitempty"`
+	InteropVerificationEnabled bool          `toml:",omitempty"`
+	InteropVerificationURL     string        `toml:",omitempty"`
+	InteropVerificationTimeout time.Duration `toml:",omitempty"`
 
 	SPListenAddr       string
 	SPServerAddr       string

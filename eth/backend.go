@@ -137,6 +137,7 @@ type Ethereum struct {
 	seqRPCService        *rpc.Client
 	historicalRPCService *rpc.Client
 	interopRPC           *interop.InteropClient
+	interopVerification  *interop.VerificationClient
 	supervisorFailsafe   atomic.Bool
 
 	nodeCloser func() error
@@ -151,6 +152,9 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	}
 	if !config.HistoryMode.IsValid() {
 		return nil, fmt.Errorf("invalid history mode %d", config.HistoryMode)
+	}
+	if err := validateInteropVerificationConfig(config); err != nil {
+		return nil, err
 	}
 	if config.Miner.GasPrice == nil || config.Miner.GasPrice.Sign() <= 0 {
 		log.Warn("Sanitizing invalid miner gas price", "provided", config.Miner.GasPrice, "updated", ethconfig.Defaults.Miner.GasPrice)
@@ -439,6 +443,9 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	if config.InteropMessageRPC != "" {
 		eth.interopRPC = interop.NewInteropClient(config.InteropMessageRPC)
 	}
+	if config.InteropVerificationEnabled {
+		eth.interopVerification = interop.NewVerificationClient(config.InteropVerificationURL, config.InteropVerificationTimeout)
+	}
 
 	// Start the RPC service
 	eth.netRPCService = ethapi.NewNetAPI(eth.p2pServer, networkID)
@@ -715,6 +722,9 @@ func (s *Ethereum) Stop() error {
 	}
 	if s.interopRPC != nil {
 		s.interopRPC.Close()
+	}
+	if s.interopVerification != nil {
+		s.interopVerification.Close()
 	}
 	if s.miner != nil {
 		s.miner.Close()

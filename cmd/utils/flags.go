@@ -983,6 +983,22 @@ var (
 		Usage:    "If using interop, transactions are checked for interop validity before being added to the mempool (experimental).",
 		Category: flags.RollupCategory,
 	}
+	RollupInteropVerificationEnabledFlag = &cli.BoolFlag{
+		Name:     "rollup.interopverificationenabled",
+		Usage:    "Enable an external verification hook for interop tx admission.",
+		Category: flags.RollupCategory,
+	}
+	RollupInteropVerificationURLFlag = &cli.StringFlag{
+		Name:     "rollup.interopverificationurl",
+		Usage:    "HTTP endpoint called before an interop tx is admitted to the mempool.",
+		Category: flags.RollupCategory,
+	}
+	RollupInteropVerificationTimeoutFlag = &cli.DurationFlag{
+		Name:     "rollup.interopverificationtimeout",
+		Usage:    "Timeout for the external interop verification hook.",
+		Value:    ethconfig.Defaults.InteropVerificationTimeout,
+		Category: flags.RollupCategory,
+	}
 
 	RollupDisableTxPoolGossipFlag = &cli.BoolFlag{
 		Name:     "rollup.disabletxpoolgossip",
@@ -2003,6 +2019,15 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	}
 	if ctx.IsSet(RollupInteropMempoolFilteringFlag.Name) {
 		cfg.InteropMempoolFiltering = ctx.Bool(RollupInteropMempoolFilteringFlag.Name)
+	}
+	if ctx.IsSet(RollupInteropVerificationEnabledFlag.Name) {
+		cfg.InteropVerificationEnabled = ctx.Bool(RollupInteropVerificationEnabledFlag.Name)
+	}
+	if ctx.IsSet(RollupInteropVerificationURLFlag.Name) {
+		cfg.InteropVerificationURL = ctx.String(RollupInteropVerificationURLFlag.Name)
+	}
+	if ctx.IsSet(RollupInteropVerificationTimeoutFlag.Name) {
+		cfg.InteropVerificationTimeout = ctx.Duration(RollupInteropVerificationTimeoutFlag.Name)
 	}
 	if ctx.IsSet(MailboxAddrAFlag.Name) {
 		cfg.RollupAMailboxAddr = ctx.String(MailboxAddrAFlag.Name)

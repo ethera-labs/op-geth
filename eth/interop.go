@@ -4,10 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/types/interoptypes"
+	"github.com/ethereum/go-ethereum/eth/ethconfig"
+	"github.com/ethereum/go-ethereum/eth/interop"
 	"github.com/ethereum/go-ethereum/miner"
 )
 
@@ -34,6 +38,28 @@ func (s *Ethereum) CheckAccessList(ctx context.Context, inboxEntries []common.Ha
 		s.setSupervisorFailsafe(true)
 	}
 	return err
+}
+
+func (s *Ethereum) VerifyInteropTx(ctx context.Context, tx *types.Transaction, inboxEntries []common.Hash, minSafety interoptypes.SafetyLevel, execDesc interoptypes.ExecutingDescriptor) error {
+	if s.interopVerification == nil {
+		return nil
+	}
+	if tx == nil {
+		return errors.New("cannot verify interop tx: transaction is nil")
+	}
+
+	txData, err := tx.MarshalBinary()
+	if err != nil {
+		return fmt.Errorf("marshal interop tx: %w", err)
+	}
+
+	return s.interopVerification.VerifyTx(ctx, interop.VerificationRequest{
+		TxHash:              tx.Hash(),
+		TxData:              txData,
+		InboxEntries:        inboxEntries,
+		MinSafety:           minSafety,
+		ExecutingDescriptor: execDesc,
+	})
 }
 
 // QueryFailsafe queries the supervisor for the failsafe status,
@@ -87,6 +113,29 @@ func (s *Ethereum) CurrentInteropBlockTime() (uint64, error) {
 // TxToInteropAccessList returns the interop specific access list storage keys for a transaction.
 func (s *Ethereum) TxToInteropAccessList(tx *types.Transaction) []common.Hash {
 	return interoptypes.TxToInteropAccessList(tx)
+}
+
+func validateInteropVerificationConfig(config *ethconfig.Config) error {
+	if !config.InteropVerificationEnabled {
+		return nil
+	}
+	if !config.InteropMempoolFiltering {
+		return errors.New("interop verification requires rollup.interopmempoolfiltering")
+	}
+	if config.InteropMessageRPC == "" {
+		return errors.New("interop verification requires rollup.interoprpc")
+	}
+	if strings.TrimSpace(config.InteropVerificationURL) == "" {
+		return errors.New("interop verification requires rollup.interopverificationurl")
+	}
+	parsedURL, err := url.Parse(config.InteropVerificationURL)
+	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
+		return fmt.Errorf("invalid rollup.interopverificationurl %q", config.InteropVerificationURL)
+	}
+	if config.InteropVerificationTimeout <= 0 {
+		return errors.New("interop verification requires a positive rollup.interopverificationtimeout")
+	}
+	return nil
 }
 
 var _ miner.BackendWithInterop = (*Ethereum)(nil)
