@@ -18,6 +18,7 @@ import (
 type mockInteropFilterAPI struct {
 	timeFn       func() (uint64, error)
 	accessListFn func(tx *types.Transaction) []common.Hash
+	verifyFn     func(ctx context.Context, tx *types.Transaction, inboxEntries []common.Hash, minSafety interoptypes.SafetyLevel, ed interoptypes.ExecutingDescriptor) error
 	checkFn      func(ctx context.Context, inboxEntries []common.Hash, minSafety interoptypes.SafetyLevel, ed interoptypes.ExecutingDescriptor) error
 }
 
@@ -31,6 +32,13 @@ func (m *mockInteropFilterAPI) CurrentInteropBlockTime() (uint64, error) {
 func (m *mockInteropFilterAPI) TxToInteropAccessList(tx *types.Transaction) []common.Hash {
 	if m.accessListFn != nil {
 		return m.accessListFn(tx)
+	}
+	return nil
+}
+
+func (m *mockInteropFilterAPI) VerifyInteropTx(ctx context.Context, tx *types.Transaction, inboxEntries []common.Hash, minSafety interoptypes.SafetyLevel, ed interoptypes.ExecutingDescriptor) error {
+	if m.verifyFn != nil {
+		return m.verifyFn(ctx, tx, inboxEntries, minSafety, ed)
 	}
 	return nil
 }
@@ -160,4 +168,58 @@ func TestInteropFilterRPCFailures(t *testing.T) {
 			require.Equal(t, false, result, "FilterTx result mismatch")
 		})
 	}
+}
+
+func TestInteropFilterVerification(t *testing.T) {
+	t.Run("verification failure rejects tx before supervisor check", func(t *testing.T) {
+		api := &mockInteropFilterAPI{}
+		filter := NewInteropFilter(api, *uint256.NewInt(123))
+		tx := types.NewTx(&types.DynamicFeeTx{})
+		checkCalled := false
+
+		api.timeFn = func() (uint64, error) {
+			return 1, nil
+		}
+		api.accessListFn = func(tx *types.Transaction) []common.Hash {
+			return []common.Hash{{0xaa}}
+		}
+		api.verifyFn = func(ctx context.Context, tx *types.Transaction, inboxEntries []common.Hash, minSafety interoptypes.SafetyLevel, ed interoptypes.ExecutingDescriptor) error {
+			require.Equal(t, common.Hash{0xaa}, inboxEntries[0])
+			return errors.New("reject")
+		}
+		api.checkFn = func(ctx context.Context, inboxEntries []common.Hash, minSafety interoptypes.SafetyLevel, ed interoptypes.ExecutingDescriptor) error {
+			checkCalled = true
+			return nil
+		}
+
+		require.False(t, filter.FilterTx(context.Background(), tx))
+		require.False(t, checkCalled)
+	})
+
+	t.Run("verification success continues to supervisor check", func(t *testing.T) {
+		api := &mockInteropFilterAPI{}
+		filter := NewInteropFilter(api, *uint256.NewInt(123))
+		tx := types.NewTx(&types.DynamicFeeTx{})
+		verifyCalled := false
+		checkCalled := false
+
+		api.timeFn = func() (uint64, error) {
+			return 1, nil
+		}
+		api.accessListFn = func(tx *types.Transaction) []common.Hash {
+			return []common.Hash{{0xaa}}
+		}
+		api.verifyFn = func(ctx context.Context, tx *types.Transaction, inboxEntries []common.Hash, minSafety interoptypes.SafetyLevel, ed interoptypes.ExecutingDescriptor) error {
+			verifyCalled = true
+			return nil
+		}
+		api.checkFn = func(ctx context.Context, inboxEntries []common.Hash, minSafety interoptypes.SafetyLevel, ed interoptypes.ExecutingDescriptor) error {
+			checkCalled = true
+			return nil
+		}
+
+		require.True(t, filter.FilterTx(context.Background(), tx))
+		require.True(t, verifyCalled)
+		require.True(t, checkCalled)
+	})
 }

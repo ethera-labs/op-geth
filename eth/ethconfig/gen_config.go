@@ -75,6 +75,9 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		RollupHaltOnIncompatibleProtocolVersion   string
 		InteropMessageRPC                         string            `toml:",omitempty"`
 		InteropMempoolFiltering                   bool              `toml:",omitempty"`
+		InteropVerificationEnabled                bool              `toml:",omitempty"`
+		InteropVerificationURL                    string            `toml:",omitempty"`
+		InteropVerificationTimeout                time.Duration     `toml:",omitempty"`
 		RollupAMailboxAddr                        string            // deprecated
 		RollupBMailboxAddr                        string            // deprecated
 		Mailboxes                                 map[uint64]string `toml:",omitempty"`
@@ -139,6 +142,9 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.RollupHaltOnIncompatibleProtocolVersion = c.RollupHaltOnIncompatibleProtocolVersion
 	enc.InteropMessageRPC = c.InteropMessageRPC
 	enc.InteropMempoolFiltering = c.InteropMempoolFiltering
+	enc.InteropVerificationEnabled = c.InteropVerificationEnabled
+	enc.InteropVerificationURL = c.InteropVerificationURL
+	enc.InteropVerificationTimeout = c.InteropVerificationTimeout
 	enc.RollupAMailboxAddr = c.RollupAMailboxAddr
 	enc.RollupBMailboxAddr = c.RollupBMailboxAddr
 	enc.Mailboxes = c.Mailboxes
@@ -205,8 +211,11 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		RollupDisableTxPoolGossip                 *bool
 		RollupDisableTxPoolAdmission              *bool
 		RollupHaltOnIncompatibleProtocolVersion   *string
-		InteropMessageRPC                         *string `toml:",omitempty"`
-		InteropMempoolFiltering                   *bool   `toml:",omitempty"`
+		InteropMessageRPC                         *string        `toml:",omitempty"`
+		InteropMempoolFiltering                   *bool          `toml:",omitempty"`
+		InteropVerificationEnabled                *bool          `toml:",omitempty"`
+		InteropVerificationURL                    *string        `toml:",omitempty"`
+		InteropVerificationTimeout                *time.Duration `toml:",omitempty"`
 		RollupAMailboxAddr                        *string
 		RollupBMailboxAddr                        *string
 		Mailboxes                                 map[uint64]string `toml:",omitempty"`
@@ -389,6 +398,15 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	}
 	if dec.InteropMempoolFiltering != nil {
 		c.InteropMempoolFiltering = *dec.InteropMempoolFiltering
+	}
+	if dec.InteropVerificationEnabled != nil {
+		c.InteropVerificationEnabled = *dec.InteropVerificationEnabled
+	}
+	if dec.InteropVerificationURL != nil {
+		c.InteropVerificationURL = *dec.InteropVerificationURL
+	}
+	if dec.InteropVerificationTimeout != nil {
+		c.InteropVerificationTimeout = *dec.InteropVerificationTimeout
 	}
 	if dec.RollupAMailboxAddr != nil {
 		c.RollupAMailboxAddr = *dec.RollupAMailboxAddr
