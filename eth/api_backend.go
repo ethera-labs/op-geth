@@ -30,7 +30,6 @@ import (
 	"sync"
 	"time"
 
-	applog "github.com/compose-network/publisher/log"
 	rollupv1 "github.com/compose-network/publisher/proto/rollup/v1"
 	spconsensus "github.com/compose-network/publisher/x/consensus"
 	"github.com/compose-network/publisher/x/mailbox"
@@ -885,13 +884,30 @@ func (b *EthAPIBackend) SimulateTransaction(
 
 			stageMsg, err := core.TransactionToMessage(staged, signer, header.BaseFee)
 			if err != nil {
+				log.Warn("[SSV] staging: TransactionToMessage failed", "staged", staged.Hash().Hex(), "err", err)
 				continue
 			}
 			stageMsg.SkipNonceChecks = true
 
 			stageGasPool := new(core.GasPool).AddGas(header.GasLimit)
 			stateDB.SetTxContext(staged.Hash(), stateDB.TxIndex()+1)
-			if _, err := core.ApplyMessage(stagingEVM, stageMsg, stageGasPool); err != nil {
+			result, err := core.ApplyMessage(stagingEVM, stageMsg, stageGasPool)
+			if err != nil {
+				log.Warn("[SSV] staging: ApplyMessage returned error", "staged", staged.Hash().Hex(), "err", err)
+				continue
+			}
+			if result != nil && result.Failed() {
+				log.Warn("[SSV] staging: tx reverted during simulation staging",
+					"staged", staged.Hash().Hex(),
+					"from", stageMsg.From.Hex(),
+					"to", func() string {
+						if stageMsg.To != nil {
+							return stageMsg.To.Hex()
+						}
+						return "<nil>"
+					}(),
+					"gasUsed", result.UsedGas,
+					"revertReason", fmt.Sprintf("%x", result.ReturnData))
 				continue
 			}
 			stateDB.Finalise(true)
@@ -3067,19 +3083,15 @@ func (b *EthAPIBackend) simulateXTRequestForSBCP(
 		}
 	}
 
-	mailboxProcessor, err := mailbox.NewProcessor(mailbox.Config{
+	mailboxProcessor := mailbox.NewProcessor(mailbox.Config{
 		ChainID:              b.ChainConfig().ChainID.Uint64(),
 		MailboxAddresses:     b.GetMailboxAddresses(),
-		Logger:               applog.New("info", true).Logger,
 		SequencerClients:     b.sequencerClients,
 		SequencerCoordinator: b.coordinator,
 		CoordinatorKey:       b.coordinatorKey,
 		CoordinatorAddr:      b.coordinatorAddr,
-		MailboxSelector:      mailbox.SelectorFunc(b.GetMailboxAddressFromChainID),
+		MailboxSelector:      b.GetMailboxAddressFromChainID,
 	})
-	if err != nil {
-		return false, fmt.Errorf("failed to build mailbox processor: %w", err)
-	}
 
 	coordinationStates := make([]*mailbox.SimulationState, 0)
 	txDone := make(map[string]struct{})

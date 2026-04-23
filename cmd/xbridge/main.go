@@ -148,6 +148,15 @@ func runSingleMode(
 ) {
 	ctx := context.Background()
 
+	// bridgeERC20To calls safeTransferFrom, so rollup-A needs a live allowance
+	// from the sender to the source bridge. This is idempotent.
+	if err := ensureAllowance(ctx, rollupA.RPC, chainAId, tokenA, bridgeA, privateKeyA, addressA, amount); err != nil {
+		log.Fatalf("ensure allowance: %v", err)
+	}
+	if refreshed, err := getPendingNonce(rollupA.RPC, addressA); err == nil {
+		nonceA = refreshed
+	}
+
 	// Create bridge parameters
 	sessionId := generateRandomSessionID()
 
@@ -193,6 +202,14 @@ func runBatchMode(
 	failRollup string,
 ) {
 	ctx := context.Background()
+
+	// Ensure allowance once; batch legs all spend from the same source bridge.
+	if err := ensureAllowance(ctx, rollupA.RPC, chainAId, tokenA, bridgeA, privateKeyA, addressA, amount); err != nil {
+		log.Fatalf("ensure allowance: %v", err)
+	}
+	if refreshed, err := getPendingNonce(rollupA.RPC, addressA); err == nil && refreshed > startingNonceA {
+		startingNonceA = refreshed
+	}
 
 	log.Printf("Starting batch execution...")
 
@@ -297,7 +314,7 @@ func createBridgeTransactionPair(
 		SrcBridge:  bridgeA,
 	}
 
-	signedTx1, err := createSendTransaction(sendParams, nonceA, privateKeyA, bridgeA)
+	signedTx1, err := createSendTransaction(sendParams, nonceA, privateKeyA)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create send transaction: %w", err)
 	}
@@ -326,7 +343,7 @@ func createBridgeTransactionPair(
 		SrcBridge:  bridgeA,
 	}
 
-	signedTx2, err := createReceiveTransaction(receiveParams, nonceB, privateKeyB, bridgeB)
+	signedTx2, err := createReceiveTransaction(receiveParams, nonceB, privateKeyB)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create receive transaction: %w", err)
 	}

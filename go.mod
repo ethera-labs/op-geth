@@ -150,3 +150,5 @@ require (
 	golang.org/x/net v0.38.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
+
+replace github.com/compose-network/publisher => github.com/ethera-labs/publisher v1.0.2-0.20260423150115-3b13a0007f0c
