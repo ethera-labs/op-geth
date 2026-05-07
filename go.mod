@@ -15,7 +15,6 @@ require (
 	github.com/cloudflare/cloudflare-go v0.114.0
 	github.com/cockroachdb/pebble v1.1.5
 	github.com/compose-network/publisher v0.0.0-20251215092248-cb4614927d54
-	github.com/compose-network/registry v0.2.0
 	github.com/consensys/gnark-crypto v0.18.0
 	github.com/crate-crypto/go-eth-kzg v1.4.0
 	github.com/crate-crypto/go-ipa v0.0.0-20240724233137-53bbb0ceb27a
@@ -25,6 +24,7 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1
 	github.com/donovanhide/eventsource v0.0.0-20210830082556-c59027999da0
 	github.com/dop251/goja v0.0.0-20230806174421-c933cf95e127
+	github.com/ethera-labs/registry v0.2.3
 	github.com/ethereum/c-kzg-4844/v2 v2.1.5
 	github.com/ethereum/go-verkle v0.2.2
 	github.com/fatih/color v1.16.0
