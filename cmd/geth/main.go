@@ -162,6 +162,7 @@ var (
 		utils.RollupInteropVerificationEnabledFlag,
 		utils.RollupInteropVerificationURLFlag,
 		utils.RollupInteropVerificationTimeoutFlag,
+		utils.RollupPermissionConfigURLFlag,
 		utils.RollupDisableTxPoolGossipFlag,
 		utils.RollupEnableTxPoolAdmissionFlag,
 		utils.RollupComputePendingBlock,

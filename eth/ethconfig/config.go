@@ -206,6 +206,8 @@ type Config struct {
 	InteropVerificationURL     string        `toml:",omitempty"`
 	InteropVerificationTimeout time.Duration `toml:",omitempty"`
 
+	PermissionConfigURL string `toml:",omitempty"`
+
 	SPListenAddr       string
 	SPServerAddr       string
 	SequencerAddrs     string

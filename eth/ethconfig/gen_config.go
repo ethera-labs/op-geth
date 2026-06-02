@@ -78,6 +78,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		InteropVerificationEnabled                bool              `toml:",omitempty"`
 		InteropVerificationURL                    string            `toml:",omitempty"`
 		InteropVerificationTimeout                time.Duration     `toml:",omitempty"`
+		PermissionConfigURL                       string            `toml:",omitempty"`
 		RollupAMailboxAddr                        string            // deprecated
 		RollupBMailboxAddr                        string            // deprecated
 		Mailboxes                                 map[uint64]string `toml:",omitempty"`
@@ -145,6 +146,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.InteropVerificationEnabled = c.InteropVerificationEnabled
 	enc.InteropVerificationURL = c.InteropVerificationURL
 	enc.InteropVerificationTimeout = c.InteropVerificationTimeout
+	enc.PermissionConfigURL = c.PermissionConfigURL
 	enc.RollupAMailboxAddr = c.RollupAMailboxAddr
 	enc.RollupBMailboxAddr = c.RollupBMailboxAddr
 	enc.Mailboxes = c.Mailboxes
@@ -216,6 +218,7 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		InteropVerificationEnabled                *bool          `toml:",omitempty"`
 		InteropVerificationURL                    *string        `toml:",omitempty"`
 		InteropVerificationTimeout                *time.Duration `toml:",omitempty"`
+		PermissionConfigURL                       *string        `toml:",omitempty"`
 		RollupAMailboxAddr                        *string
 		RollupBMailboxAddr                        *string
 		Mailboxes                                 map[uint64]string `toml:",omitempty"`
@@ -407,6 +410,9 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	}
 	if dec.InteropVerificationTimeout != nil {
 		c.InteropVerificationTimeout = *dec.InteropVerificationTimeout
+	}
+	if dec.PermissionConfigURL != nil {
+		c.PermissionConfigURL = *dec.PermissionConfigURL
 	}
 	if dec.RollupAMailboxAddr != nil {
 		c.RollupAMailboxAddr = *dec.RollupAMailboxAddr

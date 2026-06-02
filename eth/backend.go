@@ -51,6 +51,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/eth/interop"
+	"github.com/ethereum/go-ethereum/eth/permissions"
 	"github.com/ethereum/go-ethereum/eth/protocols/eth"
 	"github.com/ethereum/go-ethereum/eth/protocols/snap"
 	"github.com/ethereum/go-ethereum/eth/tracers"
@@ -138,6 +139,7 @@ type Ethereum struct {
 	historicalRPCService *rpc.Client
 	interopRPC           *interop.InteropClient
 	interopVerification  *interop.VerificationClient
+	permissionCache      *permissions.Cache
 	supervisorFailsafe   atomic.Bool
 
 	nodeCloser func() error
@@ -154,6 +156,9 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		return nil, fmt.Errorf("invalid history mode %d", config.HistoryMode)
 	}
 	if err := validateInteropVerificationConfig(config); err != nil {
+		return nil, err
+	}
+	if err := validatePermissionFilterConfig(config); err != nil {
 		return nil, err
 	}
 	if config.Miner.GasPrice == nil || config.Miner.GasPrice.Sign() <= 0 {
@@ -364,6 +369,13 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	if config.InteropMessageRPC != "" && config.InteropMempoolFiltering {
 		chainID := uint256.MustFromBig(chainConfig.ChainID)
 		poolFilters = append(poolFilters, txpool.NewInteropFilter(eth, *chainID))
+	}
+	// if institutional permissions are enabled, enforce per-entity rollup rules
+	// (contract deployment and cross-chain chain-id whitelist) on tx admission
+	if config.PermissionConfigURL != "" {
+		eth.permissionCache = permissions.NewCache(config.PermissionConfigURL)
+		eth.permissionCache.Start()
+		poolFilters = append(poolFilters, txpool.NewPermissionFilter(eth, chainConfig.ChainID, true))
 	}
 	eth.txPool, err = txpool.New(config.TxPool.PriceLimit, eth.blockchain, txPools, poolFilters)
 	if err != nil {
@@ -725,6 +737,9 @@ func (s *Ethereum) Stop() error {
 	}
 	if s.interopVerification != nil {
 		s.interopVerification.Close()
+	}
+	if s.permissionCache != nil {
+		s.permissionCache.Close()
 	}
 	if s.miner != nil {
 		s.miner.Close()
