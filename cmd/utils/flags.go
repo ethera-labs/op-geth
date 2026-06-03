@@ -1002,7 +1002,7 @@ var (
 
 	RollupPermissionConfigURLFlag = &cli.StringFlag{
 		Name:     "rollup.permissionconfigurl",
-		Usage:    "HTTP endpoint serving the permission config snapshot (e.g. /api/v1/config/snapshot). Enables institutional entity permission enforcement (contract deployment and cross-chain chain-id whitelist) on tx admission.",
+		Usage:    "WebSocket endpoint streaming the permission config (e.g. wss://host/api/v1/config/stream). Enables institutional entity permission enforcement (disabled entities, contract deployment, cross-chain chain-id whitelist) on tx admission.",
 		Category: flags.RollupCategory,
 	}
 

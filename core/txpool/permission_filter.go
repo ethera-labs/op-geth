@@ -16,8 +16,12 @@ import (
 var mailboxWriteSelector = crypto.Keccak256([]byte("write(uint256,address,uint256,bytes,bytes)"))[:4]
 
 // permissionFilterAPI resolves institutional permission rules for a sender. It
-// is backed by a snapshot pulled from the admin backend.
+// is backed by a snapshot streamed from the admin backend.
 type permissionFilterAPI interface {
+	// SenderDisabled reports whether from belongs to a disabled entity, whose
+	// transactions are blocked outright.
+	SenderDisabled(from common.Address) bool
+
 	// CanDeployContract reports whether a managed sender may deploy contracts.
 	// known is false when from is not managed, in which case the sequencer
 	// applies no restrictions.
@@ -33,8 +37,9 @@ type permissionFilterAPI interface {
 }
 
 // permissionFilter enforces per-entity rollup permissions before a transaction
-// is admitted to the pool: blocking contract deployment and restricting
-// cross-chain messaging to whitelisted chain IDs.
+// is admitted to the pool: blocking disabled entities outright, blocking
+// contract deployment, and restricting cross-chain messaging to whitelisted
+// chain IDs.
 type permissionFilter struct {
 	api      permissionFilterAPI
 	signer   types.Signer
@@ -57,6 +62,11 @@ func (f *permissionFilter) FilterTx(_ context.Context, tx *types.Transaction) bo
 	from, err := types.Sender(f.signer, tx)
 	if err != nil {
 		return f.failOpen
+	}
+
+	// A disabled entity may not admit any transaction.
+	if f.api.SenderDisabled(from) {
+		return false
 	}
 
 	// Contract deployment: a creation is decided solely by the deploy capability.

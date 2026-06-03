@@ -1,47 +1,54 @@
 // Package permissions resolves the institutional permission rules that the
 // sequencer enforces at Layer 1, before a transaction is admitted to the pool.
 //
-// Rules originate from the admin backend and are pulled as a periodically
-// refreshed snapshot (GET /api/v1/config/snapshot) so the admission hot path
-// never makes a network call. The backend serves entities and rule groups as
-// separate collections: an entity carries one or more wallet addresses and a
-// reference to its rule group, while the engine-enforceable capabilities
-// (contract deployment, cross-rollup reachability) live on the rule group. The
-// cache joins the two and indexes the resolved rules by wallet address.
+// Rules originate from the admin backend and are received over a WebSocket
+// config stream (GET /api/v1/config/stream). The backend pushes a full snapshot
+// on connect and again whenever the configuration changes, so the admission hot
+// path serves from memory and never makes a network call. The snapshot's
+// entities and rule groups are joined on ruleGroupId; each of an entity's
+// wallet addresses inherits its rule group's capabilities (or, if the entity is
+// disabled, a blocked rule set).
 package permissions
 
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/gorilla/websocket"
 )
 
 const (
-	// defaultRefreshInterval is how often the snapshot is re-pulled from the backend.
-	defaultRefreshInterval = 10 * time.Second
-	// defaultRequestTimeout bounds a single snapshot request.
-	defaultRequestTimeout = 2 * time.Second
+	// reconnectDelay is the wait between stream reconnection attempts.
+	reconnectDelay = 3 * time.Second
+	// handshakeTimeout bounds the WebSocket opening handshake.
+	handshakeTimeout = 10 * time.Second
 )
 
-// snapshotResponse mirrors the admin backend's GET /api/v1/config/snapshot
-// payload. Only the fields the engine enforces at Layer 1 are decoded.
+// streamMessage is the envelope pushed over the config stream. A message of
+// type "snapshot" carries the full permission set in Data.
+type streamMessage struct {
+	Type string           `json:"type"`
+	Data snapshotResponse `json:"data"`
+}
+
+// snapshotResponse is the permission configuration. Only the fields the engine
+// enforces at Layer 1 are decoded.
 type snapshotResponse struct {
 	Entities   []snapshotEntity    `json:"entities"`
 	RuleGroups []snapshotRuleGroup `json:"ruleGroups"`
 }
 
-// snapshotEntity is a managed actor. Its capabilities are inherited from the
-// rule group referenced by RuleGroupID; an entity with no rule group (ID 0) is
+// snapshotEntity is a managed actor. A disabled entity (IsActive false) is
+// blocked outright; otherwise its capabilities are inherited from the rule
+// group referenced by RuleGroupID. An active entity with no rule group is
 // unmanaged and unrestricted.
 type snapshotEntity struct {
+	IsActive        bool                 `json:"isActive"`
 	RuleGroupID     int                  `json:"ruleGroupId"`
 	WalletAddresses []snapshotWalletAddr `json:"walletAddresses"`
 }
@@ -52,23 +59,19 @@ type snapshotWalletAddr struct {
 
 // snapshotRuleGroup is a named permission bundle. NetworkScope is "all" or
 // "restricted"; when restricted, NetworkRollups whitelists the reachable peer
-// chain IDs. CanSendTx is carried but not yet enforced (see [Rules]).
+// chain IDs.
 type snapshotRuleGroup struct {
 	ID                int      `json:"id"`
-	CanSendTx         bool     `json:"canSendTx"`
 	CanDeployContract bool     `json:"canDeployContract"`
 	NetworkScope      string   `json:"networkScope"`
 	NetworkRollups    []uint64 `json:"networkRollups"`
 }
 
 // Rules is the resolved capability set for a single managed wallet address.
-//
-// CanSendTx reflects the rule group's on-rollup transaction gate. Its exact
-// enforcement semantics (block all transactions vs. block native-coin value
-// transfers only) are pending confirmation with the backend owner, so the
-// admission filter does not yet act on it.
 type Rules struct {
-	CanSendTx         bool
+	// Active is false when the owning entity is disabled, in which case the
+	// sender is blocked from admitting any transaction.
+	Active            bool
 	CanDeployContract bool
 	NetworkRestricted bool
 	allowedChains     map[uint64]bool
@@ -83,12 +86,10 @@ func (r Rules) ChainAllowed(chainID uint64) bool {
 	return r.allowedChains[chainID]
 }
 
-// Cache holds the latest permission snapshot and keeps it fresh by polling the
-// admin backend. Lookups are served from memory under a read lock.
+// Cache holds the latest permission snapshot and keeps it fresh from the config
+// stream. Lookups are served from memory under a read lock.
 type Cache struct {
 	endpoint string
-	interval time.Duration
-	client   *http.Client
 
 	mu    sync.RWMutex
 	rules map[common.Address]Rules
@@ -97,13 +98,11 @@ type Cache struct {
 	done   chan struct{}
 }
 
-// NewCache constructs a Cache that polls endpoint. The poller is inert until
-// Start is called.
+// NewCache constructs a Cache that streams from endpoint. The stream is inert
+// until Start is called.
 func NewCache(endpoint string) *Cache {
 	return &Cache{
 		endpoint: endpoint,
-		interval: defaultRefreshInterval,
-		client:   &http.Client{Timeout: defaultRequestTimeout},
 		rules:    make(map[common.Address]Rules),
 		done:     make(chan struct{}),
 	}
@@ -118,35 +117,16 @@ func (c *Cache) Lookup(addr common.Address) (rules Rules, known bool) {
 	return rules, known
 }
 
-// Start performs an initial refresh and then polls in the background until
-// Close is called. A failed initial refresh is logged and retried on the next
-// tick; the cache simply serves an empty rule set until the backend responds.
+// Start connects to the config stream and applies pushed snapshots in the
+// background until Close is called. The cache serves an empty rule set until the
+// first snapshot arrives.
 func (c *Cache) Start() {
 	ctx, cancel := context.WithCancel(context.Background())
 	c.cancel = cancel
-
-	if err := c.refresh(ctx); err != nil {
-		log.Warn("Initial permission snapshot refresh failed", "endpoint", c.endpoint, "err", err)
-	}
-
-	go func() {
-		defer close(c.done)
-		ticker := time.NewTicker(c.interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if err := c.refresh(ctx); err != nil {
-					log.Warn("Permission snapshot refresh failed", "endpoint", c.endpoint, "err", err)
-				}
-			}
-		}
-	}()
+	go c.run(ctx)
 }
 
-// Close stops the background poller and waits for it to exit.
+// Close stops the stream and waits for the background goroutine to exit.
 func (c *Cache) Close() {
 	if c == nil || c.cancel == nil {
 		return
@@ -155,36 +135,56 @@ func (c *Cache) Close() {
 	<-c.done
 }
 
-func (c *Cache) refresh(ctx context.Context) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.endpoint, nil)
+// run maintains the stream connection, reconnecting after a fixed delay until
+// the context is cancelled.
+func (c *Cache) run(ctx context.Context) {
+	defer close(c.done)
+	for {
+		if err := c.stream(ctx); err != nil && ctx.Err() == nil {
+			log.Warn("Permission stream disconnected", "endpoint", c.endpoint, "err", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(reconnectDelay):
+		}
+	}
+}
+
+// stream opens the WebSocket connection and applies snapshots until the
+// connection drops or the context is cancelled.
+func (c *Cache) stream(ctx context.Context) error {
+	dialer := websocket.Dialer{HandshakeTimeout: handshakeTimeout}
+	conn, _, err := dialer.DialContext(ctx, c.endpoint, nil)
 	if err != nil {
-		return fmt.Errorf("build snapshot request: %w", err)
+		return err
 	}
+	defer conn.Close()
 
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("fetch snapshot: %w", err)
+	// Closing the connection on cancellation unblocks the read loop below.
+	go func() {
+		<-ctx.Done()
+		conn.Close()
+	}()
+
+	for {
+		_, payload, err := conn.ReadMessage()
+		if err != nil {
+			return err
+		}
+		var msg streamMessage
+		if err := json.Unmarshal(payload, &msg); err != nil {
+			log.Warn("Permission stream message decode failed", "err", err)
+			continue
+		}
+		if msg.Type != "snapshot" {
+			continue
+		}
+		rules := resolveRules(msg.Data)
+		c.mu.Lock()
+		c.rules = rules
+		c.mu.Unlock()
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("snapshot endpoint returned status %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
-	if err != nil {
-		return fmt.Errorf("read snapshot body: %w", err)
-	}
-
-	var snapshot snapshotResponse
-	if err := json.Unmarshal(body, &snapshot); err != nil {
-		return fmt.Errorf("decode snapshot: %w", err)
-	}
-
-	c.mu.Lock()
-	c.rules = resolveRules(snapshot)
-	c.mu.Unlock()
-	return nil
 }
 
 // resolveRules joins entities to their rule groups and indexes the resulting
@@ -197,11 +197,10 @@ func resolveRules(snapshot snapshotResponse) map[common.Address]Rules {
 
 	rules := make(map[common.Address]Rules)
 	for _, entity := range snapshot.Entities {
-		group, ok := groups[entity.RuleGroupID]
-		if !ok {
+		entityRules, managed := resolveEntity(entity, groups)
+		if !managed {
 			continue
 		}
-		entityRules := rulesFromGroup(group)
 		for _, wallet := range entity.WalletAddresses {
 			if !common.IsHexAddress(wallet.Address) {
 				continue
@@ -210,6 +209,19 @@ func resolveRules(snapshot snapshotResponse) map[common.Address]Rules {
 		}
 	}
 	return rules
+}
+
+// resolveEntity returns the rules for an entity. managed is false for an active
+// entity with no rule group, which carries no engine-enforced restrictions.
+func resolveEntity(entity snapshotEntity, groups map[int]snapshotRuleGroup) (Rules, bool) {
+	if !entity.IsActive {
+		return Rules{Active: false}, true
+	}
+	group, ok := groups[entity.RuleGroupID]
+	if !ok {
+		return Rules{}, false
+	}
+	return rulesFromGroup(group), true
 }
 
 func rulesFromGroup(group snapshotRuleGroup) Rules {
@@ -222,7 +234,7 @@ func rulesFromGroup(group snapshotRuleGroup) Rules {
 		}
 	}
 	return Rules{
-		CanSendTx:         group.CanSendTx,
+		Active:            true,
 		CanDeployContract: group.CanDeployContract,
 		NetworkRestricted: restricted,
 		allowedChains:     allowed,

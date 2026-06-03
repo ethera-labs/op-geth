@@ -9,69 +9,80 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// snapshotJSON mirrors the live GET /api/v1/config/snapshot payload: entities
-// and rule groups are separate collections joined by ruleGroupId, and an entity
-// carries multiple wallet addresses.
-const snapshotJSON = `{
-  "version": 2,
-  "entities": [
-    {
-      "id": 1,
-      "name": "Bank",
-      "isActive": true,
-      "ruleGroupId": 10,
-      "walletAddresses": [
-        {"address": "0x000000000000000000000000000000000000aaaa", "label": "hot"},
-        {"address": "0x000000000000000000000000000000000000bbbb", "label": "cold"}
-      ]
-    },
-    {
-      "id": 2,
-      "name": "Open",
-      "isActive": true,
-      "ruleGroupId": 20,
-      "walletAddresses": [{"address": "0x000000000000000000000000000000000000cccc"}]
-    },
-    {
-      "id": 3,
-      "name": "No group",
-      "isActive": true,
-      "walletAddresses": [{"address": "0x000000000000000000000000000000000000dddd"}]
-    }
-  ],
-  "ruleGroups": [
-    {
-      "id": 10,
-      "canSendTx": true,
-      "canDeployContract": false,
-      "networkScope": "restricted",
-      "networkRollups": [222, 333]
-    },
-    {
-      "id": 20,
-      "canSendTx": true,
-      "canDeployContract": true,
-      "networkScope": "all",
-      "networkRollups": []
-    }
-  ]
+// streamJSON mirrors a config-stream message: a "snapshot" envelope whose data
+// carries entities and rule groups as separate collections joined by
+// ruleGroupId, with each entity holding multiple wallet addresses.
+const streamJSON = `{
+  "type": "snapshot",
+  "data": {
+    "version": 2,
+    "entities": [
+      {
+        "id": 1,
+        "name": "Bank",
+        "isActive": true,
+        "ruleGroupId": 10,
+        "walletAddresses": [
+          {"address": "0x000000000000000000000000000000000000aaaa", "label": "hot"},
+          {"address": "0x000000000000000000000000000000000000bbbb", "label": "cold"}
+        ]
+      },
+      {
+        "id": 2,
+        "name": "Open",
+        "isActive": true,
+        "ruleGroupId": 20,
+        "walletAddresses": [{"address": "0x000000000000000000000000000000000000cccc"}]
+      },
+      {
+        "id": 3,
+        "name": "No group",
+        "isActive": true,
+        "walletAddresses": [{"address": "0x000000000000000000000000000000000000dddd"}]
+      },
+      {
+        "id": 4,
+        "name": "Disabled",
+        "isActive": false,
+        "ruleGroupId": 20,
+        "walletAddresses": [{"address": "0x000000000000000000000000000000000000eeee"}]
+      }
+    ],
+    "ruleGroups": [
+      {
+        "id": 10,
+        "canDeployContract": false,
+        "networkScope": "restricted",
+        "networkRollups": [222, 333]
+      },
+      {
+        "id": 20,
+        "canDeployContract": true,
+        "networkScope": "all",
+        "networkRollups": []
+      }
+    ]
+  }
 }`
 
 func TestResolveRules(t *testing.T) {
-	var snapshot snapshotResponse
-	require.NoError(t, json.Unmarshal([]byte(snapshotJSON), &snapshot))
+	var msg streamMessage
+	require.NoError(t, json.Unmarshal([]byte(streamJSON), &msg))
+	require.Equal(t, "snapshot", msg.Type)
 
-	rules := resolveRules(snapshot)
+	rules := resolveRules(msg.Data)
 
 	bankHot := common.HexToAddress("0x000000000000000000000000000000000000aaaa")
 	bankCold := common.HexToAddress("0x000000000000000000000000000000000000bbbb")
 	open := common.HexToAddress("0x000000000000000000000000000000000000cccc")
 	ungrouped := common.HexToAddress("0x000000000000000000000000000000000000dddd")
+	disabled := common.HexToAddress("0x000000000000000000000000000000000000eeee")
 
 	// Every wallet of an entity inherits its rule group.
 	for _, addr := range []common.Address{bankHot, bankCold} {
 		r, known := rules[addr]
 		require.True(t, known)
+		require.True(t, r.Active)
 		require.False(t, r.CanDeployContract)
 		require.True(t, r.NetworkRestricted)
 		require.True(t, r.ChainAllowed(222))
@@ -81,11 +92,17 @@ func TestResolveRules(t *testing.T) {
 
 	r, known := rules[open]
 	require.True(t, known)
+	require.True(t, r.Active)
 	require.True(t, r.CanDeployContract)
 	require.False(t, r.NetworkRestricted)
 	require.True(t, r.ChainAllowed(999)) // unrestricted reaches any peer
 
-	// An entity with no rule group is not managed.
+	// An active entity with no rule group is not managed.
 	_, known = rules[ungrouped]
 	require.False(t, known)
+
+	// A disabled entity is managed but blocked outright.
+	r, known = rules[disabled]
+	require.True(t, known)
+	require.False(t, r.Active)
 }

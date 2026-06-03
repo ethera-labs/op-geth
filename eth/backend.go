@@ -371,7 +371,8 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		poolFilters = append(poolFilters, txpool.NewInteropFilter(eth, *chainID))
 	}
 	// if institutional permissions are enabled, enforce per-entity rollup rules
-	// (contract deployment and cross-chain chain-id whitelist) on tx admission
+	// (disabled entities, contract deployment, cross-chain chain-id whitelist)
+	// on tx admission
 	if config.PermissionConfigURL != "" {
 		eth.permissionCache = permissions.NewCache(config.PermissionConfigURL)
 		eth.permissionCache.Start()

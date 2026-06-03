@@ -14,10 +14,15 @@ import (
 )
 
 type mockPermissionAPI struct {
+	disabled          bool
 	canDeployContract bool
 	known             bool
 	mailbox           *common.Address
 	allowedChains     map[uint64]bool
+}
+
+func (m *mockPermissionAPI) SenderDisabled(common.Address) bool {
+	return m.disabled
 }
 
 func (m *mockPermissionAPI) CanDeployContract(common.Address) (bool, bool) {
@@ -74,6 +79,13 @@ func TestPermissionFilter(t *testing.T) {
 		f := NewPermissionFilter(api, permissionTestChainID, true)
 		tx := signTx(t, key, nil, big.NewInt(1), nil)
 		require.True(t, f.FilterTx(context.Background(), tx))
+	})
+
+	t.Run("blocks all transactions from a disabled entity", func(t *testing.T) {
+		api := &mockPermissionAPI{known: true, disabled: true, canDeployContract: true}
+		f := NewPermissionFilter(api, permissionTestChainID, true)
+		tx := signTx(t, key, &contractAddr, big.NewInt(0), []byte{0x01})
+		require.False(t, f.FilterTx(context.Background(), tx))
 	})
 
 	t.Run("blocks contract deployment", func(t *testing.T) {
