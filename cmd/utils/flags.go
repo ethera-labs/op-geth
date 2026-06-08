@@ -1000,6 +1000,12 @@ var (
 		Category: flags.RollupCategory,
 	}
 
+	RollupPermissionConfigURLFlag = &cli.StringFlag{
+		Name:     "rollup.permissionconfigurl",
+		Usage:    "WebSocket endpoint streaming the permission config (e.g. wss://host/api/v1/config/stream). Enables institutional entity permission enforcement (disabled entities, contract deployment, cross-chain chain-id whitelist) on tx admission.",
+		Category: flags.RollupCategory,
+	}
+
 	RollupDisableTxPoolGossipFlag = &cli.BoolFlag{
 		Name:     "rollup.disabletxpoolgossip",
 		Usage:    "Disable transaction pool gossip.",
@@ -2028,6 +2034,9 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	}
 	if ctx.IsSet(RollupInteropVerificationTimeoutFlag.Name) {
 		cfg.InteropVerificationTimeout = ctx.Duration(RollupInteropVerificationTimeoutFlag.Name)
+	}
+	if ctx.IsSet(RollupPermissionConfigURLFlag.Name) {
+		cfg.PermissionConfigURL = ctx.String(RollupPermissionConfigURLFlag.Name)
 	}
 	if ctx.IsSet(MailboxAddrAFlag.Name) {
 		cfg.RollupAMailboxAddr = ctx.String(MailboxAddrAFlag.Name)
