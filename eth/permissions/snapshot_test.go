@@ -53,13 +53,13 @@ const streamJSON = `{
         "id": 10,
         "canDeployContract": false,
         "networkScope": "restricted",
-        "networkRollups": [222, 333]
+        "rollups": [222, 333]
       },
       {
         "id": 20,
         "canDeployContract": true,
         "networkScope": "all",
-        "networkRollups": []
+        "rollups": []
       }
     ]
   }
