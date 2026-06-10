@@ -49,7 +49,7 @@ type snapshotResponse struct {
 // unmanaged and unrestricted.
 type snapshotEntity struct {
 	IsActive        bool                 `json:"isActive"`
-	RuleGroupID     int                  `json:"ruleGroupId"`
+	RuleGroupID     string               `json:"ruleGroupId"`
 	WalletAddresses []snapshotWalletAddr `json:"walletAddresses"`
 }
 
@@ -61,7 +61,7 @@ type snapshotWalletAddr struct {
 // "restricted"; when restricted, Rollups whitelists the reachable peer chain
 // IDs.
 type snapshotRuleGroup struct {
-	ID                int      `json:"id"`
+	RuleGroupID       string   `json:"ruleGroupId"`
 	CanDeployContract bool     `json:"canDeployContract"`
 	NetworkScope      string   `json:"networkScope"`
 	Rollups           []uint64 `json:"rollups"`
@@ -190,9 +190,9 @@ func (c *Cache) stream(ctx context.Context) error {
 // resolveRules joins entities to their rule groups and indexes the resulting
 // capabilities by wallet address.
 func resolveRules(snapshot snapshotResponse) map[common.Address]Rules {
-	groups := make(map[int]snapshotRuleGroup, len(snapshot.RuleGroups))
+	groups := make(map[string]snapshotRuleGroup, len(snapshot.RuleGroups))
 	for _, group := range snapshot.RuleGroups {
-		groups[group.ID] = group
+		groups[group.RuleGroupID] = group
 	}
 
 	rules := make(map[common.Address]Rules)
@@ -212,8 +212,9 @@ func resolveRules(snapshot snapshotResponse) map[common.Address]Rules {
 }
 
 // resolveEntity returns the rules for an entity. managed is false for an active
-// entity with no rule group, which carries no engine-enforced restrictions.
-func resolveEntity(entity snapshotEntity, groups map[int]snapshotRuleGroup) (Rules, bool) {
+// entity with no rule group (empty RuleGroupID), which carries no
+// engine-enforced restrictions.
+func resolveEntity(entity snapshotEntity, groups map[string]snapshotRuleGroup) (Rules, bool) {
 	if !entity.IsActive {
 		return Rules{Active: false}, true
 	}

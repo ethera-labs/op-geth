@@ -18,45 +18,46 @@ const streamJSON = `{
     "version": 2,
     "entities": [
       {
-        "id": 1,
+        "entityId": "e1",
         "name": "Bank",
         "isActive": true,
-        "ruleGroupId": 10,
+        "ruleGroupId": "rg-restricted",
         "walletAddresses": [
           {"address": "0x000000000000000000000000000000000000aaaa", "label": "hot"},
           {"address": "0x000000000000000000000000000000000000bbbb", "label": "cold"}
         ]
       },
       {
-        "id": 2,
+        "entityId": "e2",
         "name": "Open",
         "isActive": true,
-        "ruleGroupId": 20,
+        "ruleGroupId": "rg-open",
         "walletAddresses": [{"address": "0x000000000000000000000000000000000000cccc"}]
       },
       {
-        "id": 3,
+        "entityId": "e3",
         "name": "No group",
         "isActive": true,
+        "ruleGroupId": null,
         "walletAddresses": [{"address": "0x000000000000000000000000000000000000dddd"}]
       },
       {
-        "id": 4,
+        "entityId": "e4",
         "name": "Disabled",
         "isActive": false,
-        "ruleGroupId": 20,
+        "ruleGroupId": "rg-open",
         "walletAddresses": [{"address": "0x000000000000000000000000000000000000eeee"}]
       }
     ],
     "ruleGroups": [
       {
-        "id": 10,
+        "ruleGroupId": "rg-restricted",
         "canDeployContract": false,
         "networkScope": "restricted",
         "rollups": [222, 333]
       },
       {
-        "id": 20,
+        "ruleGroupId": "rg-open",
         "canDeployContract": true,
         "networkScope": "all",
         "rollups": []
