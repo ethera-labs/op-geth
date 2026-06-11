@@ -58,13 +58,17 @@ type snapshotWalletAddr struct {
 }
 
 // snapshotRuleGroup is a named permission bundle. NetworkScope is "all" or
-// "restricted"; when restricted, Rollups whitelists the reachable peer chain
-// IDs.
+// "restricted"; when restricted, Rollups whitelists the reachable peer chains.
 type snapshotRuleGroup struct {
-	RuleGroupID       string   `json:"ruleGroupId"`
-	CanDeployContract bool     `json:"canDeployContract"`
-	NetworkScope      string   `json:"networkScope"`
-	Rollups           []uint64 `json:"rollups"`
+	RuleGroupID       string           `json:"ruleGroupId"`
+	CanDeployContract bool             `json:"canDeployContract"`
+	NetworkScope      string           `json:"networkScope"`
+	Rollups           []snapshotRollup `json:"rollups"`
+}
+
+// snapshotRollup is one entry of a rule group's cross-rollup whitelist.
+type snapshotRollup struct {
+	ChainID uint64 `json:"chainId"`
 }
 
 // Rules is the resolved capability set for a single managed wallet address.
@@ -230,8 +234,8 @@ func rulesFromGroup(group snapshotRuleGroup) Rules {
 	var allowed map[uint64]bool
 	if restricted {
 		allowed = make(map[uint64]bool, len(group.Rollups))
-		for _, id := range group.Rollups {
-			allowed[id] = true
+		for _, r := range group.Rollups {
+			allowed[r.ChainID] = true
 		}
 	}
 	return Rules{

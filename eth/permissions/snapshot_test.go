@@ -54,7 +54,7 @@ const streamJSON = `{
         "ruleGroupId": "rg-restricted",
         "canDeployContract": false,
         "networkScope": "restricted",
-        "rollups": [222, 333]
+        "rollups": [{"chainId": 222}, {"chainId": 333}]
       },
       {
         "ruleGroupId": "rg-open",
